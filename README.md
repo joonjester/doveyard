@@ -1,2 +1,2 @@
 # DoveYard
-DoveYard is a modern terminal user interface (TUI) for email clients, built with Go.
+DoveYard is a terminal user interface (TUI) email client written in Go.
