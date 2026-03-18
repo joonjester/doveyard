@@ -10,11 +10,12 @@ import (
 )
 
 type email struct {
-	sender   string
-	receiver string
-	subject  string
-	content  string
-	time     time.Time
+	sender     string
+	receiver   string
+	subject    string
+	content    string
+	time       time.Time
+	readStatus bool
 }
 
 type size struct {
@@ -32,17 +33,19 @@ type model struct {
 func initialModal() model {
 	return model{
 		emails: []email{{
-			sender:   "test@test.de",
-			receiver: "test2@test.de",
-			subject:  "This is a test email",
-			content:  "Hello World!",
-			time:     time.Now(),
+			sender:     "test@test.de",
+			receiver:   "test2@test.de",
+			subject:    "This is a test email",
+			content:    "Hello World!",
+			time:       time.Now(),
+			readStatus: false,
 		}, {
-			sender:   "test@test.de",
-			receiver: "test2@test.de",
-			subject:  "This is a second test email",
-			content:  "Hello World!",
-			time:     time.Now(),
+			sender:     "test@test.de",
+			receiver:   "test2@test.de",
+			subject:    "This is a second test email",
+			content:    "Hello World!",
+			time:       time.Now(),
+			readStatus: false,
 		}},
 
 		selected: make(map[int]struct{}),
@@ -95,29 +98,33 @@ func (m model) View() tea.View {
 		Width(m.size.width).
 		Height(m.size.height).
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("228")).
 		BorderTop(true).
 		BorderBottom(true).
 		BorderLeft(true).
 		BorderRight(true)
 
 	normalStyle := lipgloss.NewStyle()
-	selectedStyle := lipgloss.NewStyle().Background(lipgloss.Color("62")).Foreground(lipgloss.Color("230"))
+	unreadStyle := lipgloss.NewStyle().Foreground(lipgloss.Cyan)
+	selectedStyle := lipgloss.NewStyle().Background(lipgloss.White)
 
-	lines := "What should we buy at the market?\n\n"
-
+	var lines string
 	for i, email := range m.emails {
-		checked := " "
-		if _, ok := m.selected[i]; ok {
-			checked = "x"
+		line := fmt.Sprintf("[%s] %s\n %s", email.time.Format("02.01.2006"), email.sender, email.subject)
+
+		_, ok := m.selected[i]
+		if ok && email.readStatus == false {
+			email.readStatus = true
 		}
 
-		line := fmt.Sprintf("[%s] %s\n %s", checked, email.subject, email.content)
+		styledLines := normalStyle.Render(line)
+		if email.readStatus == false {
+			styledLines = unreadStyle.Render(line)
+		}
 
 		if m.cursor == i {
-			lines += selectedStyle.Render(line) + "\n"
+			lines += selectedStyle.Render(styledLines) + "\n"
 		} else {
-			lines += normalStyle.Render(line) + "\n"
+			lines += styledLines + "\n"
 		}
 	}
 
