@@ -1,9 +1,9 @@
 package main
 
 import (
-	doveyard "github.com/joonjester/doveyard/internal"
+	tui "github.com/joonjester/doveyard/internal/tui"
 )
 
 func main() {
-	doveyard.Run()
+	tui.Run()
 }
