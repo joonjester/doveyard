@@ -9,13 +9,20 @@ import (
 	"charm.land/lipgloss/v2"
 )
 
-type email struct {
-	sender     string
-	receiver   string
-	subject    string
-	content    string
-	time       time.Time
-	readStatus bool
+type ViewType string
+
+const (
+	horizontalSplit ViewType = "horizontalSplit"
+	verticalSplit   ViewType = "verticalSplit"
+)
+
+type Email struct {
+	sender   string
+	receiver string
+	subject  string
+	content  string
+	time     time.Time
+	hasRead  bool
 }
 
 type size struct {
@@ -23,40 +30,46 @@ type size struct {
 	height int
 }
 
-type model struct {
-	emails   []email
-	cursor   int
-	selected map[int]struct{}
-	size     size
+type Model struct {
+	emails    map[int]Email
+	cursor    int
+	selected  map[int]struct{}
+	size      size
+	showEmail bool
+	viewType  ViewType
 }
 
-func initialModal() model {
-	return model{
-		emails: []email{{
-			sender:     "test@test.de",
-			receiver:   "test2@test.de",
-			subject:    "This is a test email",
-			content:    "Hello World!",
-			time:       time.Now(),
-			readStatus: false,
-		}, {
-			sender:     "test@test.de",
-			receiver:   "test2@test.de",
-			subject:    "This is a second test email",
-			content:    "Hello World!",
-			time:       time.Now(),
-			readStatus: false,
-		}},
+func initialModal() Model {
+	return Model{
+		emails: map[int]Email{
+			0: {
+				sender:   "test@test.de",
+				receiver: "test2@test.de",
+				subject:  "This is a test email",
+				content:  "Hi World!",
+				time:     time.Now(),
+				hasRead:  false,
+			},
+			1: {
+				sender:   "test@test.de",
+				receiver: "test2@test.de",
+				subject:  "This is a second test email",
+				content:  "Hello World!",
+				time:     time.Now(),
+				hasRead:  false,
+			},
+		},
 
+		viewType: verticalSplit,
 		selected: make(map[int]struct{}),
 	}
 }
 
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -81,8 +94,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case "enter", "space":
+			email := m.emails[m.cursor]
 			_, ok := m.selected[m.cursor]
 			if ok {
+				email.hasRead = true
 				delete(m.selected, m.cursor)
 			} else {
 				m.selected[m.cursor] = struct{}{}
@@ -93,44 +108,59 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) View() tea.View {
-	container := lipgloss.NewStyle().
-		Width(m.size.width).
-		Height(m.size.height).
+func (m Model) View() tea.View {
+	width := m.size.width
+	height := m.size.height
+
+	fullWidth := lipgloss.NewStyle().
 		BorderStyle(lipgloss.RoundedBorder()).
-		BorderTop(true).
-		BorderBottom(true).
-		BorderLeft(true).
-		BorderRight(true)
+		Width(width).
+		Height(height)
 
-	normalStyle := lipgloss.NewStyle()
-	unreadStyle := lipgloss.NewStyle().Foreground(lipgloss.Cyan)
-	selectedStyle := lipgloss.NewStyle().Background(lipgloss.White)
+	emailInbox, openedEmailIndex := allEmails(m)
+	if openedEmailIndex == nil {
+		return tea.NewView(fullWidth.Render(emailInbox))
+	}
+	openedEmail := EmailContent(m.emails[*openedEmailIndex], width)
+	display := SplitView(m, emailInbox, openedEmail)
 
-	var lines string
+	return tea.NewView(display)
+}
+
+func allEmails(m Model) (string, *int) {
+	unreadEmail := lipgloss.NewStyle().Foreground(lipgloss.Cyan)
+	hoveringEmail := lipgloss.NewStyle().Background(lipgloss.White)
+	defaultEmail := lipgloss.NewStyle()
+
+	var emails string
+	var openedEmailIndex *int
 	for i, email := range m.emails {
-		line := fmt.Sprintf("[%s] %s\n %s", email.time.Format("02.01.2006"), email.sender, email.subject)
+		message := fmt.Sprintf("[%s] %s\n %s",
+			email.time.Format("02.01.2006"),
+			email.sender,
+			email.subject)
 
 		_, ok := m.selected[i]
-		if ok && email.readStatus == false {
-			email.readStatus = true
+		if ok {
+			openedEmailIndex = &i
 		}
 
-		styledLines := normalStyle.Render(line)
-		if email.readStatus == false {
-			styledLines = unreadStyle.Render(line)
+		if !email.hasRead && !ok {
+			message = unreadEmail.Render(message)
+		} else {
+			message = defaultEmail.Render(message)
 		}
 
 		if m.cursor == i {
-			lines += selectedStyle.Render(styledLines) + "\n"
+			message = hoveringEmail.Render(message) + "\n"
 		} else {
-			lines += styledLines + "\n"
+			message = defaultEmail.Render(message) + "\n"
 		}
+
+		emails += message
 	}
 
-	lines += "\nPress q to quit.\n"
-
-	return tea.NewView(container.Render(lines))
+	return emails, openedEmailIndex
 }
 
 func Run() {
