@@ -16,7 +16,7 @@ const (
 	verticalSplit   ViewType = "verticalSplit"
 )
 
-type email struct {
+type Email struct {
 	sender   string
 	receiver string
 	subject  string
@@ -30,8 +30,8 @@ type size struct {
 	height int
 }
 
-type model struct {
-	emails    map[int]email
+type Model struct {
+	emails    map[int]Email
 	cursor    int
 	selected  map[int]struct{}
 	size      size
@@ -39,9 +39,9 @@ type model struct {
 	viewType  ViewType
 }
 
-func initialModal() model {
-	return model{
-		emails: map[int]email{
+func initialModal() Model {
+	return Model{
+		emails: map[int]Email{
 			0: {
 				sender:   "test@test.de",
 				receiver: "test2@test.de",
@@ -60,16 +60,16 @@ func initialModal() model {
 			},
 		},
 
-		viewType: horizontalSplit,
+		viewType: verticalSplit,
 		selected: make(map[int]struct{}),
 	}
 }
 
-func (m model) Init() tea.Cmd {
+func (m Model) Init() tea.Cmd {
 	return nil
 }
 
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 
 	case tea.WindowSizeMsg:
@@ -100,7 +100,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				email.hasRead = true
 				delete(m.selected, m.cursor)
 			} else {
-				email.hasRead = false
 				m.selected[m.cursor] = struct{}{}
 			}
 		}
@@ -109,7 +108,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, nil
 }
 
-func (m model) View() tea.View {
+func (m Model) View() tea.View {
 	width := m.size.width
 	height := m.size.height
 
@@ -119,66 +118,16 @@ func (m model) View() tea.View {
 		Height(height)
 
 	emailInbox, openedEmailIndex := allEmails(m)
-	if openedEmailIndex != nil {
-		email := m.emails[*openedEmailIndex]
-		openedEmail := emailContent(email, width)
-
-		display := splitView(m, emailInbox, openedEmail)
-
-		return tea.NewView(display)
+	if openedEmailIndex == nil {
+		return tea.NewView(fullWidth.Render(emailInbox))
 	}
+	openedEmail := EmailContent(m.emails[*openedEmailIndex], width)
+	display := SplitView(m, emailInbox, openedEmail)
 
-	return tea.NewView(fullWidth.Render(emailInbox))
+	return tea.NewView(display)
 }
 
-func getSplitStyle(isVertical bool, width int, height int) lipgloss.Style {
-	if isVertical {
-		return lipgloss.NewStyle().
-			BorderStyle(lipgloss.RoundedBorder()).
-			Width(width).
-			Height(height / 2)
-	}
-
-	return lipgloss.NewStyle().
-		BorderStyle(lipgloss.RoundedBorder()).
-		Width(width / 2).
-		Height(height)
-}
-
-func splitView(m model, emailInbox string, openEmail string) string {
-	isVertical := m.viewType == verticalSplit
-	viewStyleRender := getSplitStyle(isVertical, m.size.width, m.size.height)
-
-	emailInboxRender := viewStyleRender.Render(emailInbox)
-	emailContentRender := viewStyleRender.Render(openEmail)
-
-	if isVertical {
-		return lipgloss.JoinVertical(lipgloss.Left, emailInboxRender, emailContentRender)
-	}
-	return lipgloss.JoinHorizontal(lipgloss.Left, emailInboxRender, emailContentRender)
-}
-
-func emailContent(email email, width int) string {
-	emailAddressStyle := lipgloss.NewStyle().Foreground(lipgloss.Color("#808080"))
-	subjectStyle := lipgloss.NewStyle().
-		Bold(true).
-		BorderStyle(lipgloss.Border{Bottom: "="}).
-		BorderBottom(true).Width((width / 2) - 2)
-
-	var emailContent string
-
-	addresses := fmt.Sprintf("From: %s\nTo: %s\n", email.sender, email.receiver)
-	emailContent += fmt.Sprintf(
-		"%s\n%s\n%s",
-		emailAddressStyle.Render(addresses),
-		subjectStyle.Render(email.subject),
-		email.content,
-	)
-
-	return emailContent
-}
-
-func allEmails(m model) (string, *int) {
+func allEmails(m Model) (string, *int) {
 	unreadEmail := lipgloss.NewStyle().Foreground(lipgloss.Cyan)
 	hoveringEmail := lipgloss.NewStyle().Background(lipgloss.White)
 	defaultEmail := lipgloss.NewStyle()
